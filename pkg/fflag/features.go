@@ -18,10 +18,10 @@
 // in feature.yaml. Features cannot be disabled in the file.
 //
 // A feature flag can be deprecated or retired. A deprecated feature flag is
-// still accepted but a warning is logged. A retired feature flag is ignored
-// and an error is logged.
+// still accepted but a warning is logged (only if a deprecation message is provided).
+// A retired feature flag is ignored and an error is logged.
 //
-// A specific deprecation message is used to inform the user of the behavior
+// The message is inteded to inform the user of the behavior
 // that has been decided when the flag is/was finally retired.
 
 package fflag
@@ -97,7 +97,7 @@ type FeatureRegister struct {
 	features  map[string]*Feature
 }
 
-var featureNameRexp = regexp.MustCompile(`^[a-z0-9_\.]+$`)
+var featureNameRexp = regexp.MustCompile(`^[a-z0-9_.]+$`)
 
 func validateFeatureName(featureName string) error {
 	if featureName == "" {
@@ -176,12 +176,14 @@ func (fr *FeatureRegister) SetFromEnv(logger *logrus.Logger) error {
 			logger.Errorf("Ignored envvar '%s': %s. %s", varName, err, feat.DeprecationMsg)
 			continue
 		case errors.Is(err, ErrFeatureDeprecated):
-			logger.Warningf("Envvar '%s': %s. %s", varName, err, feat.DeprecationMsg)
+			if feat.DeprecationMsg != "" {
+				logger.Warningf("Envvar '%s': %s. %s", varName, err, feat.DeprecationMsg)
+			}
 		case err != nil:
 			return err
 		}
 
-		logger.Infof("Feature flag: %s=%t (from envvar). %s", featureName, enable, feat.Description)
+		logger.Debugf("Feature flag: %s=%t (from envvar). %s", featureName, enable, feat.Description)
 	}
 
 	return nil
@@ -224,7 +226,7 @@ func (fr *FeatureRegister) SetFromYaml(r io.Reader, logger *logrus.Logger) error
 			return err
 		}
 
-		logger.Infof("Feature flag: %s=true (from config file). %s", k, feat.Description)
+		logger.Debugf("Feature flag: %s=true (from config file). %s", k, feat.Description)
 	}
 
 	return nil
@@ -234,7 +236,7 @@ func (fr *FeatureRegister) SetFromYamlFile(path string, logger *logrus.Logger) e
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			logger.Debugf("Feature flags config file '%s' does not exist", path)
+			logger.Tracef("Feature flags config file '%s' does not exist", path)
 
 			return nil
 		}
@@ -259,6 +261,23 @@ func (fr *FeatureRegister) GetEnabledFeatures() []string {
 	}
 
 	sort.Strings(ret)
+
+	return ret
+}
+
+// GetAllFeatures returns a slice of all the known features, ordered by name
+func (fr *FeatureRegister) GetAllFeatures() []Feature {
+	ret := make([]Feature, len(fr.features))
+
+	i := 0
+	for _, feat := range fr.features {
+		ret[i] = *feat
+		i++
+	}
+
+	sort.Slice(ret, func(i, j int) bool {
+		return ret[i].Name < ret[j].Name
+	})
 
 	return ret
 }

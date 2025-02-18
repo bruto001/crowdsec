@@ -9,7 +9,8 @@ import (
 	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/require"
 
-	"github.com/crowdsecurity/crowdsec/pkg/cstest"
+	"github.com/crowdsecurity/go-cs-lib/cstest"
+
 	"github.com/crowdsecurity/crowdsec/pkg/fflag"
 )
 
@@ -49,8 +50,6 @@ func TestRegisterFeature(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
-
 		t.Run("", func(t *testing.T) {
 			fr := fflag.FeatureRegister{EnvPrefix: "FFLAG_TEST_"}
 			err := fr.RegisterFeature(&tc.feature)
@@ -111,7 +110,6 @@ func TestGetFeature(t *testing.T) {
 	fr := setUp(t)
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := fr.GetFeature(tc.feature)
 			cstest.RequireErrorMessage(t, err, tc.expectedErr)
@@ -144,7 +142,6 @@ func TestIsEnabled(t *testing.T) {
 	fr := setUp(t)
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			feat, err := fr.GetFeature(tc.feature)
 			require.NoError(t, err)
@@ -203,7 +200,6 @@ func TestFeatureSet(t *testing.T) {
 	fr := setUp(t)
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			feat, err := fr.GetFeature(tc.feature)
 			cstest.RequireErrorMessage(t, err, tc.expectedGetErr)
@@ -283,10 +279,9 @@ func TestSetFromEnv(t *testing.T) {
 	fr := setUp(t)
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			logger, hook := logtest.NewNullLogger()
-			logger.SetLevel(logrus.InfoLevel)
+			logger.SetLevel(logrus.DebugLevel)
 			t.Setenv(tc.envvar, tc.value)
 			err := fr.SetFromEnv(logger)
 			cstest.RequireErrorMessage(t, err, tc.expectedErr)
@@ -343,10 +338,9 @@ func TestSetFromYaml(t *testing.T) {
 	fr := setUp(t)
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			logger, hook := logtest.NewNullLogger()
-			logger.SetLevel(logrus.InfoLevel)
+			logger.SetLevel(logrus.DebugLevel)
 			err := fr.SetFromYaml(strings.NewReader(tc.yml), logger)
 			cstest.RequireErrorMessage(t, err, tc.expectedErr)
 			for _, expectedMessage := range tc.expectedLog {
@@ -357,19 +351,17 @@ func TestSetFromYaml(t *testing.T) {
 }
 
 func TestSetFromYamlFile(t *testing.T) {
-	tmpfile, err := os.CreateTemp("", "test")
+	tmpfile, err := os.CreateTemp(t.TempDir(), "test")
 	require.NoError(t, err)
 
-	defer os.Remove(tmpfile.Name())
-
 	// write the config file
-	_, err = tmpfile.Write([]byte("- experimental1"))
+	_, err = tmpfile.WriteString("- experimental1")
 	require.NoError(t, err)
 	require.NoError(t, tmpfile.Close())
 
 	fr := setUp(t)
 	logger, hook := logtest.NewNullLogger()
-	logger.SetLevel(logrus.InfoLevel)
+	logger.SetLevel(logrus.DebugLevel)
 
 	err = fr.SetFromYamlFile(tmpfile.Name(), logger)
 	require.NoError(t, err)
@@ -382,11 +374,13 @@ func TestGetEnabledFeatures(t *testing.T) {
 
 	feat1, err := fr.GetFeature("new_standard")
 	require.NoError(t, err)
-	feat1.Set(true)
+	err = feat1.Set(true)
+	require.Error(t, err, "the flag is deprecated")
 
 	feat2, err := fr.GetFeature("experimental1")
 	require.NoError(t, err)
-	feat2.Set(true)
+	err = feat2.Set(true)
+	require.NoError(t, err)
 
 	expected := []string{
 		"experimental1",
